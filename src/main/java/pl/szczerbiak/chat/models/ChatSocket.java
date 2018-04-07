@@ -11,7 +11,6 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -86,22 +85,32 @@ public class ChatSocket extends TextWebSocketHandler implements WebSocketConfigu
             return;
         }
 
-        // Baning
-        if (sender.isBanned() && System.currentTimeMillis() - sender.getTime() > 3000L) {
-            sender.setBanned(false);
-        } else if (sender.getCounter() == 0) {
+        // If banned: wait 5 sec
+        if (sender.isBanned()) {
+            if (System.currentTimeMillis() - sender.getTime() < 5000L) {
+                return;
+            } else {
+                sender.setBanned(false);
+            }
+        }
+
+        // If not banned: type up to 3 messages in 3 sec
+        if (sender.getCounter() == 0) {
             sender.setTime(System.currentTimeMillis());
             sender.setCounter(sender.getCounter() + 1);
         } else if (System.currentTimeMillis() - sender.getTime() < 3000L) {
             if (sender.getCounter() < 3) {
                 sender.setCounter(sender.getCounter() + 1);
             } else {
-                sender.sendMessage("You're banned!");
-                sender.isBanned();
+                sender.sendMessage("You're banned! Wait 5 sec...");
+                sender.setBanned(true);
                 sender.setCounter(0);
+                sender.setTime(System.currentTimeMillis());
                 return;
             }
-        } else {
+        }
+        // Reset params
+        else if(System.currentTimeMillis() - sender.getTime() > 3000L ){
             sender.setCounter(0);
             sender.setTime(System.currentTimeMillis());
         }
@@ -110,19 +119,21 @@ public class ChatSocket extends TextWebSocketHandler implements WebSocketConfigu
         if (sender.isAdmin()) {
             if (input.startsWith("/changenick ")) {
                 String[] res = input.split("\\s+");
-
                 // TODO
             }
+
+            return;
         }
 
-        // Show message
-        if (!sender.isBanned()) {
-            addMessagetoHistory(input);
-            sendMessageToAll(sender.getNickname() + ": " + input);
-        }
+        String output = sender.getNickname() + ": " + input;
+        addMessagetoHistory(output); // add message to history
+        sendMessageToAll(output); // show message
     }
 
-    // Wysyłanie wiadomości do każdego użytkownika
+    // =============================================================
+    // Helper methods
+    // =============================================================
+
     protected void sendMessageToAll(String message) throws Exception {
         for (UserChatModel userModel : userList) {
             userModel.sendMessage(message);
@@ -143,7 +154,7 @@ public class ChatSocket extends TextWebSocketHandler implements WebSocketConfigu
     }
 
     private void addMessagetoHistory(String message) {
-        if (messageHistoryList.size() >= 5) { // last 5 messages
+        if (messageHistoryList.size() >= 10) { // last 10 messages
             messageHistoryList.remove(0);
         }
         messageHistoryList.add(message);
@@ -159,7 +170,9 @@ public class ChatSocket extends TextWebSocketHandler implements WebSocketConfigu
         }
     }
 
-    // ADMIN PANEL
+    // =============================================================
+    // Admin panel
+    // =============================================================
 
     private String kick(UserChatModel user) {
         userList.remove(findUserBySessionId(user.getSession()));

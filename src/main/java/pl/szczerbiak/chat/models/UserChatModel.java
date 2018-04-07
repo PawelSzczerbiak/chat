@@ -10,10 +10,10 @@ import java.io.IOException;
 public class UserChatModel {
     private WebSocketSession session;
     private String nickname;
-    private Long time;
-    private int counter;
-    private boolean isBanned = false;
-    private boolean isAdmin = false;
+    private Long time; // message time
+    private int counter; // number of messages
+    private boolean isBanned;
+    private boolean isAdmin;
 
     public UserChatModel(WebSocketSession session){
         this.session = session;
