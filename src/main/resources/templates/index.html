@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://thymeleaf.org/">
+<head>
+    <meta charset="UTF-8">
+    <title>Chat</title>
+    <link rel="stylesheet" type="text/css" th:href="@{/style.css}">
+    <script type="text/javascript" th:src="@{/chatScript.js}"></script>
+</head>
+<body>
+
+    <section id="wrapper">
+        <h1 id="chatname">CHAT WITHOUT LIMITS!</h1>
+            <ul id="messages"></ul>
+            <form class="form" onsubmit="sendMessage(); return false;">
+                <input id="writer" placeholder="Type message...">
+            </form>
+    </section>
+
+    <script>
+        messages = document.getElementById("messages"); // do wypisywania wiadomości
+        writer = document.getElementById("writer"); // do przyjmowania wiadomości z klawiatury
+        form = writer.form;
+        window.addEventListener("load", onLoad, false);
+    </script>
+
+</body>
+</html>
