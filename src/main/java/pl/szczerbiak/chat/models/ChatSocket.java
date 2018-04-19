@@ -12,12 +12,15 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 
 // TextWebSocketHandler - nasz socket będzie wymieniał tylko tekst
 @EnableWebSocket
 @Component
 public class ChatSocket extends TextWebSocketHandler implements WebSocketConfigurer {
+
+    // TODO: refactoring
 
     // Lista użytkowników
     List<UserChatModel> userList = new ArrayList<>();
@@ -61,69 +64,24 @@ public class ChatSocket extends TextWebSocketHandler implements WebSocketConfigu
 
         // Nickname setting
         if (sender.getNickname() == null) {
-            // User gave correct admin name
-            if (sender.isAdmin() == true) {
-                if (input.equals(PASSWORD)) {
-                    sender.setNickname(message.getPayload());
-                    sender.sendMessage("You're now logged-in as admin!");
-                } else {
-                    sender.setAdmin(false);
-                    sender.sendMessage("Wrong password! Enter nickname:");
-                }
-                return;
-            }
-
-            if (input.equals(ADMIN)) {
-                sender.sendMessage("Enter password:");
-                sender.setAdmin(true);
-            } else if (getNicknames().contains(input)) {
-                sender.sendMessage("Nickname already in use!");
-            } else {
-                sender.setNickname(message.getPayload());
-                sender.sendMessage("Nickname set to: " + message.getPayload());
-            }
+            welcomeDialog(sender, input, message);
             return;
         }
 
-        // If banned: wait 5 sec
-        if (sender.isBanned()) {
-            if (System.currentTimeMillis() - sender.getTime() < 5000L) {
-                return;
-            } else {
-                sender.setBanned(false);
-            }
-        }
-
-        // If not banned: type up to 3 messages in 3 sec
-        if (sender.getCounter() == 0) {
-            sender.setTime(System.currentTimeMillis());
-            sender.setCounter(sender.getCounter() + 1);
-        } else if (System.currentTimeMillis() - sender.getTime() < 3000L) {
-            if (sender.getCounter() < 3) {
-                sender.setCounter(sender.getCounter() + 1);
-            } else {
-                sender.sendMessage("You're banned! Wait 5 sec...");
-                sender.setBanned(true);
-                sender.setCounter(0);
-                sender.setTime(System.currentTimeMillis());
-                return;
-            }
-        }
-        // Reset params
-        else if(System.currentTimeMillis() - sender.getTime() > 3000L ){
-            sender.setCounter(0);
-            sender.setTime(System.currentTimeMillis());
-        }
-
-        // Admin settings
-        if (sender.isAdmin()) {
-            if (input.startsWith("/changenick ")) {
-                String[] res = input.split("\\s+");
-                // TODO
-            }
-
+        // Banning setting
+        if(!sender.isAdmin() && checkBanned(sender)){
             return;
         }
+
+//        // Admin settings
+//        if (sender.isAdmin()) {
+//            if (input.startsWith("/changenick ")) {
+//                String[] res = input.split("\\s+");
+//                // TODO
+//            }
+//
+//            return;
+//        }
 
         String output = sender.getNickname() + ": " + input;
         addMessagetoHistory(output); // add message to history
@@ -143,8 +101,7 @@ public class ChatSocket extends TextWebSocketHandler implements WebSocketConfigu
     private UserChatModel findUserBySessionId(WebSocketSession session) {
         return userList.stream()
                 .filter(s -> s.getSession().getId().equals(session.getId()))
-                .findAny().get(); // TODO: zrobić bezpieczniej !
-
+                .findAny().orElseThrow(NoSuchElementException::new);
     }
 
     private List<String> getNicknames() {
@@ -168,6 +125,70 @@ public class ChatSocket extends TextWebSocketHandler implements WebSocketConfigu
                 e.printStackTrace();
             }
         }
+    }
+
+    // =============================================================
+    // User handling
+    // =============================================================
+
+    private void welcomeDialog(UserChatModel sender, String input, TextMessage message) throws IOException {
+        // User gave correct admin name
+        if (sender.isAdmin() == true) {
+            if (input.equals(PASSWORD)) {
+                sender.setNickname(message.getPayload());
+                sender.sendMessage("You're now logged-in as admin!");
+            } else {
+                sender.setAdmin(false);
+                sender.sendMessage("Wrong password! Enter nickname:");
+            }
+            return;
+        }
+
+        if (input.equals(ADMIN)) {
+            sender.sendMessage("Enter password:");
+            sender.setAdmin(true);
+        } else if (getNicknames().contains(input)) {
+            sender.sendMessage("Nickname already in use!");
+        } else {
+            sender.setNickname(message.getPayload());
+            sender.sendMessage("Nickname set to: " + message.getPayload());
+        }
+        return;
+
+    }
+
+    private boolean checkBanned(UserChatModel sender) throws IOException {
+        // If banned: wait 5 sec
+        if (sender.isBanned()) {
+            if (System.currentTimeMillis() - sender.getTime() < 5000L) {
+                return true;
+            } else {
+                sender.setBanned(false);
+            }
+        }
+
+        // If not banned: type up to 3 messages in 3 sec
+        if (sender.getCounter() == 0) {
+            sender.setTime(System.currentTimeMillis());
+            sender.setCounter(sender.getCounter() + 1);
+        } else if (System.currentTimeMillis() - sender.getTime() < 3000L) {
+            if (sender.getCounter() < 3) {
+                sender.setCounter(sender.getCounter() + 1);
+            } else {
+                sender.sendMessage("You're banned! Wait 5 sec...");
+                sender.setBanned(true);
+                sender.setCounter(0);
+                sender.setTime(System.currentTimeMillis());
+                return true;
+            }
+        }
+        // Reset params
+        else if (System.currentTimeMillis() - sender.getTime() > 3000L) {
+            sender.setCounter(0);
+            sender.setTime(System.currentTimeMillis());
+        }
+
+        return false;
     }
 
     // =============================================================
