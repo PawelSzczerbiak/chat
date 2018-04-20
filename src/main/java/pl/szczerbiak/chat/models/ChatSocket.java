@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 // TextWebSocketHandler - nasz socket będzie wymieniał tylko tekst
@@ -69,28 +70,43 @@ public class ChatSocket extends TextWebSocketHandler implements WebSocketConfigu
         }
 
         // Banning setting
-        if(!sender.isAdmin() && checkBanned(sender)){
+        if (!sender.isAdmin() && checkBanned(sender)) {
             return;
         }
 
-//        // Admin settings
-//        if (sender.isAdmin()) {
-//            if (input.startsWith("/changenick ")) {
-//                String[] res = input.split("\\s+");
-//                // TODO
-//            }
-//
-//            return;
-//        }
+        // Admin settings
+        if (sender.isAdmin()) {
+            if (input.startsWith("/")) {
+                String[] res = input.split("\\s+");
+                if (res.length >= 3 && res[0].equals("/changenick")) {
+                    String oldNick = res[1];
+                    String newNick = res[2];
+                    findUserByNickname(oldNick).ifPresent(user -> changeNick(user, newNick));
+                } else if (res.length >= 2) {
+                    String nick = res[1];
+                    if (res[0].equals("/kick")) {
+                        findUserByNickname(nick).ifPresent(user -> kick(user));
+                    } else if (res[0].equals("/ban")) {
+                        findUserByNickname(nick).ifPresent(user -> ban(user));
+                    } else if (res[0].equals("/unban")) {
+                        findUserByNickname(nick).ifPresent(user -> unban(user));
+                    }
+                }
+                return;
+            }
+        }
 
         String output = sender.getNickname() + ": " + input;
+
         addMessagetoHistory(output); // add message to history
+
         sendMessageToAll(output); // show message
+
     }
 
-    // =============================================================
-    // Helper methods
-    // =============================================================
+// =============================================================
+// Helper methods
+// =============================================================
 
     protected void sendMessageToAll(String message) throws Exception {
         for (UserChatModel userModel : userList) {
@@ -102,6 +118,12 @@ public class ChatSocket extends TextWebSocketHandler implements WebSocketConfigu
         return userList.stream()
                 .filter(s -> s.getSession().getId().equals(session.getId()))
                 .findAny().orElseThrow(NoSuchElementException::new);
+    }
+
+    private Optional<UserChatModel> findUserByNickname(String nickname) {
+        return userList.stream()
+                .filter(s -> s.getNickname().equals(nickname))
+                .findAny();
     }
 
     private List<String> getNicknames() {
@@ -127,9 +149,9 @@ public class ChatSocket extends TextWebSocketHandler implements WebSocketConfigu
         }
     }
 
-    // =============================================================
-    // User handling
-    // =============================================================
+// =============================================================
+// User handling
+// =============================================================
 
     private void welcomeDialog(UserChatModel sender, String input, TextMessage message) throws IOException {
         // User gave correct admin name
@@ -158,6 +180,11 @@ public class ChatSocket extends TextWebSocketHandler implements WebSocketConfigu
     }
 
     private boolean checkBanned(UserChatModel sender) throws IOException {
+
+        if(sender.isBannedByAdmin()) {
+            return true;
+        }
+
         // If banned: wait 5 sec
         if (sender.isBanned()) {
             if (System.currentTimeMillis() - sender.getTime() < 5000L) {
@@ -191,36 +218,36 @@ public class ChatSocket extends TextWebSocketHandler implements WebSocketConfigu
         return false;
     }
 
-    // =============================================================
-    // Admin panel
-    // =============================================================
+// =============================================================
+// Admin panel
+// =============================================================
 
-    private String kick(UserChatModel user) {
+    private void kick(UserChatModel user) {
         userList.remove(findUserBySessionId(user.getSession()));
-        return user.getNickname() + " removed";
+        System.out.println(user.getNickname() + " removed");
     }
 
-    private String ban(UserChatModel user) {
-        if (!user.isBanned()) {
-            user.setBanned(true);
-            return user.getNickname() + " banned";
+    private void ban(UserChatModel user) {
+        if (!user.isBannedByAdmin()) {
+            user.setBannedByAdmin(true);
+            System.out.println(user.getNickname() + " banned");
         } else {
-            return user.getNickname() + " is already banned!";
+            System.out.println(user.getNickname() + " is already banned!");
         }
     }
 
-    private String unban(UserChatModel user) {
-        if (user.isBanned()) {
-            user.setBanned(false);
-            return user.getNickname() + " is unbanned";
+    private void unban(UserChatModel user) {
+        if (user.isBannedByAdmin()) {
+            user.setBannedByAdmin(false);
+            System.out.println(user.getNickname() + " is unbanned");
         } else {
-            return user.getNickname() + " is already unbanned!";
+            System.out.println(user.getNickname() + " is already unbanned!");
         }
     }
 
-    private String changeNick(UserChatModel user, String nick) {
+    private void changeNick(UserChatModel user, String nick) {
         String oldNick = user.getNickname();
         user.setNickname(nick);
-        return oldNick + " is now" + user.getNickname();
+        System.out.println(oldNick + " is now " + user.getNickname());
     }
 }

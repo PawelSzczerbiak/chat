@@ -13,6 +13,7 @@ public class UserChatModel {
     private Long time; // message time
     private int counter; // number of messages
     private boolean isBanned;
+    private boolean isBannedByAdmin;
     private boolean isAdmin;
 
     public UserChatModel(WebSocketSession session){
